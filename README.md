@@ -109,6 +109,19 @@ Derleme 3–5 dakika sürer. Çıktı: `dist\BIST_Portfoy_Analiz_Araci.exe`
 
 ---
 
+## 🛡️ Windows SmartScreen Uyarısı
+
+`.exe` dosyasını ilk çalıştırdığınızda Windows şu uyarıyı verebilir:
+
+> *"Microsoft Defender SmartScreen tanınmayan bir uygulamanın başlamasını engelledi."*
+
+Bu uyarı **uygulama tehlikeli olduğu için değil**, dijital imzasız olduğu içindir.
+Kaynak kod tamamen açık: [github.com/ErenTahiroglu/BIST-Portfoy-Analiz-Araci](https://github.com/ErenTahiroglu/BIST-Portfoy-Analiz-Araci)
+
+**Çalıştırmak için:** "Daha fazla bilgi" → "Yine de çalıştır"
+
+---
+
 ## 📋 Popüler BIST Sembolleri
 
 ```
