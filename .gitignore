@@ -1,0 +1,12 @@
+.claude/
+.vs/
+.vscode/*.local*
+env/
+__pycache__/
+*.pyc
+*.pyo
+.env
+*.xlsx
+*.log
+dist/
+build/
