@@ -208,7 +208,7 @@ class AnalysisThread(threading.Thread):
 class GUIApp(ctk.CTk):
     def __init__(self):
         super().__init__()
-        self.title("BIST Portföy Analiz Aracı  –  v1.0")
+        self.title("BIST Portföy Analiz Aracı  –  v1.1")
         self.geometry("1200x800")
         self.minsize(980, 640)
 
