@@ -1,5 +1,5 @@
 """
-BIST Portföy Analiz Aracı  –  v1.0
+BIST Portföy Analiz Aracı  –  v1.1
 ====================================
 Borsa İstanbul hisse senetleri ve fonların finansal performansını
 nominal ve reel (enflasyondan arındırılmış) bazda analiz eder.
@@ -10,6 +10,7 @@ nominal ve reel (enflasyondan arındırılmış) bazda analiz eder.
   • Kısa vadeli dönemsel performans (1, 2, 3, 6, 9 ay)
   • Temettü verimi hesaplama
   • Çoklu kaynak: Yahoo Finance (.IS) + Stooq doğrulaması
+  • TEFAS entegrasyonu — 3 harfli fon kodları otomatik algılanır
   • Kaynaklar arası fiyat farkı > %2 → uyarı
   • Excel export
 
@@ -155,7 +156,7 @@ class HisseAnaliz:
         self.yillar = list(range(self.bu_yil - ANALIZ_YIL_SAYI, self.bu_yil))
 
         print(f"\n{'═'*68}")
-        print(f"  BIST PORTFÖY ANALİZ ARACI  –  v1.0")
+        print(f"  BIST PORTFÖY ANALİZ ARACI  –  v1.1")
         print(f"{'═'*68}")
         print(f"  Tarih         : {self.bugun.strftime('%d.%m.%Y')}")
         print(f"  Analiz yılları: {self.yillar[0]} – {self.yillar[-1]}")
@@ -185,6 +186,16 @@ class HisseAnaliz:
     def _temiz_sembol(sembol: str) -> str:
         """Gösterim için .IS sonekini kaldırır."""
         return sembol.replace(".IS", "").replace(".is", "")
+
+    @staticmethod
+    def _fon_kodu_mu(sembol: str) -> bool:
+        """Sembolün TEFAS yatırım fonu kodu olup olmadığını kontrol eder.
+
+        TEFAS fon kodları tam olarak 3 büyük harften oluşur (örn: AKB, GAR, TKF).
+        BIST hisse kodları en az 4 karakter olduğundan çakışma yoktur.
+        """
+        s = sembol.strip().upper().replace(".IS", "")
+        return len(s) == 3 and s.isalpha()
 
     # ─────────────────────────────────────────────────────────────────────────
     # ENFLASYON (FRED – Türkiye CPI)
@@ -326,16 +337,96 @@ class HisseAnaliz:
             return None
 
     # ─────────────────────────────────────────────────────────────────────────
+    # KAYNAK 4: TEFAS (Türkiye Elektronik Fon Alım Satım Platformu)
+    # ─────────────────────────────────────────────────────────────────────────
+
+    def _tefas_cek(self, fon_kodu: str, baslangic: datetime, bitis: datetime
+                   ) -> Optional[pd.DataFrame]:
+        """TEFAS API'sinden fon birim pay değeri geçmişini çeker.
+
+        Endpoint : POST https://www.tefas.gov.tr/api/DB/BindHistoryInfo
+        Fon tipleri: YAT (Yatırım Fonu), EMK (Emeklilik Fonu)
+        Yanıt alanları: TARIH (DD.MM.YYYY), FIYAT (birim pay değeri)
+        """
+        fon_kodu = fon_kodu.strip().upper()
+        url = "https://www.tefas.gov.tr/api/DB/BindHistoryInfo"
+        headers = {
+            "Content-Type":    "application/x-www-form-urlencoded; charset=UTF-8",
+            "Referer":         "https://www.tefas.gov.tr/FonAnaliz.aspx",
+            "Origin":          "https://www.tefas.gov.tr",
+            "User-Agent":      ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                                "AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36"),
+            "X-Requested-With": "XMLHttpRequest",
+        }
+        for fontip in ("YAT", "EMK"):
+            try:
+                payload = {
+                    "fontip":   fontip,
+                    "sfonkod":  fon_kodu,
+                    "bastarih": baslangic.strftime("%d.%m.%Y"),
+                    "bittarih": bitis.strftime("%d.%m.%Y"),
+                }
+                if _HAS_CURL:
+                    r = _CURL_SESSION.post(url, data=payload, headers=headers, timeout=30)
+                else:
+                    r = req_lib.post(url, data=payload, headers=headers,
+                                     timeout=30, verify=False)
+
+                kayitlar = r.json().get("data", [])
+                if not kayitlar:
+                    continue
+
+                df = pd.DataFrame(kayitlar)
+                df["tarih"] = pd.to_datetime(
+                    df["TARIH"], format="%d.%m.%Y", errors="coerce"
+                )
+                df = df.dropna(subset=["tarih"]).set_index("tarih")
+                df.index = df.index.tz_localize("UTC")
+                df = df.sort_index()
+                df["Close"] = pd.to_numeric(df["FIYAT"], errors="coerce")
+                df = df[["Close"]].dropna()
+
+                if df.empty:
+                    continue
+
+                print(f"     ✅ TEFAS ({fontip})  : {len(df)} gün ({fon_kodu})")
+                return df
+
+            except Exception as e:
+                print(f"     ⚠️  TEFAS {fontip} hata: {str(e)[:80]}")
+                continue
+
+        return None
+
+    # ─────────────────────────────────────────────────────────────────────────
     # ÇOK KAYNAKLI VERİ ÇEKME + DOĞRULAMA
     # ─────────────────────────────────────────────────────────────────────────
 
     def _veri_cek(self, sembol: str) -> Optional[Dict]:
-        temiz = self._temiz_sembol(sembol)
-        print(f"  📥 {temiz} → veri çekiliyor...")
+        temiz     = self._temiz_sembol(sembol)
+        fon_mu    = self._fon_kodu_mu(temiz)
         baslangic = datetime(self.yillar[0] - 1, 12, 1)
         bitis     = self.bugun.tz_convert(None).to_pydatetime()
 
-        # ── Yahoo Finance (birincil) ──────────────────────────────────────────
+        # ── TEFAS yolu (yatırım fonu — 3 harfli kod) ─────────────────────────
+        if fon_mu:
+            print(f"  📥 {temiz} → fon verisi çekiliyor (TEFAS)...")
+            fiyatlar_tefas = self._tefas_cek(temiz, baslangic, bitis)
+            if fiyatlar_tefas is None:
+                print(f"  ❌ {temiz}: TEFAS'tan veri alınamadı.")
+                return None
+            haftalik = fiyatlar_tefas.resample("W-FRI").last().dropna()
+            return {
+                "fiyatlar":  fiyatlar_tefas,
+                "haftalik":  haftalik,
+                "temettular": pd.Series(dtype=float),
+                "ad":        f"Fon: {temiz}",
+            }
+
+        # ── Hisse senedi yolu ─────────────────────────────────────────────────
+        print(f"  📥 {temiz} → hisse verisi çekiliyor...")
+
+        # Yahoo Finance (birincil)
         fiyatlar_yf = None
         for deneme in range(RETRY_SAYISI):
             try:
@@ -351,7 +442,7 @@ class HisseAnaliz:
                         return None
                     time.sleep(1)
 
-        # ── Stooq (ikincil) ───────────────────────────────────────────────────
+        # Stooq (ikincil)
         fiyatlar_stooq = None
         try:
             fiyatlar_stooq = self._stooq_cek(sembol, baslangic, bitis)
@@ -362,7 +453,7 @@ class HisseAnaliz:
         except Exception as e:
             print(f"     ⚠️  Stooq hata: {e}")
 
-        # ── Alpha Vantage (üçüncül) ──────────────────────────────────────────
+        # Alpha Vantage (üçüncül)
         fiyatlar_av = None
         if _AV_KEY:
             try:
@@ -378,10 +469,10 @@ class HisseAnaliz:
             print(f"  ❌ {temiz}: hiçbir kaynaktan veri alınamadı.")
             return None
 
-        # ── Çapraz doğrulama ──────────────────────────────────────────────────
+        # Çapraz doğrulama
         self._capraz_dogrula(temiz, fiyatlar_yf, fiyatlar_stooq, fiyatlar_av)
 
-        # ── Birincil fiyat seçimi ─────────────────────────────────────────────
+        # Birincil fiyat seçimi
         if fiyatlar_yf is not None:
             fiyatlar = fiyatlar_yf
         elif fiyatlar_stooq is not None:
@@ -389,8 +480,9 @@ class HisseAnaliz:
         else:
             fiyatlar = fiyatlar_av
 
-        # ── Temettü (Yahoo'dan) ───────────────────────────────────────────────
+        # Temettü (Yahoo'dan)
         temettular = pd.Series(dtype=float)
+        ticker = None
         try:
             yf_sembol = self._bist_sembol(sembol)
             ticker_kwargs = {"session": _CURL_SESSION} if _HAS_CURL else {}
@@ -401,34 +493,37 @@ class HisseAnaliz:
         except Exception:
             pass
 
-        # ── Şirket adı ────────────────────────────────────────────────────────
+        # Şirket adı
         ad = POPULER_BIST.get(temiz, temiz)
         try:
-            name = getattr(ticker.fast_info, "company_name", None)
-            if name:
-                ad = name
+            if ticker is not None:
+                name = getattr(ticker.fast_info, "company_name", None)
+                if name:
+                    ad = name
         except Exception:
             pass
 
-        # ── Haftalık veri oluştur ─────────────────────────────────────────────
+        # Haftalık veri oluştur
         haftalik = fiyatlar.resample("W-FRI").agg({
             "Open": "first", "High": "max", "Low": "min",
             "Close": "last", "Volume": "sum"
         }).dropna() if "Open" in fiyatlar.columns else fiyatlar.resample("W-FRI").last().dropna()
 
         return {
-            "fiyatlar": fiyatlar,
-            "haftalik": haftalik,
+            "fiyatlar":  fiyatlar,
+            "haftalik":  haftalik,
             "temettular": temettular,
-            "ad": ad,
+            "ad":        ad,
         }
 
     def _capraz_dogrula(self, sembol: str,
                         yf_df:    Optional[pd.DataFrame],
                         stooq_df: Optional[pd.DataFrame],
-                        av_df:    Optional[pd.DataFrame]) -> None:
+                        av_df:    Optional[pd.DataFrame],
+                        tefas_df: Optional[pd.DataFrame] = None) -> None:
         fiyatlar_dict: Dict[str, float] = {}
-        for isim, df in [("Yahoo", yf_df), ("Stooq", stooq_df), ("AlphaVantage", av_df)]:
+        for isim, df in [("Yahoo", yf_df), ("Stooq", stooq_df),
+                         ("AlphaVantage", av_df), ("TEFAS", tefas_df)]:
             if df is not None and not df.empty and "Close" in df.columns:
                 try:
                     fiyatlar_dict[isim] = float(df["Close"].dropna().iloc[-1])

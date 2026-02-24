@@ -14,6 +14,7 @@ Borsa İstanbul (BIST) hisse senetleri ve fonların finansal performansını **n
 - **Temettü verimi** — Her yıl için otomatik hesaplama
 - **Toplam getiri** — 3 yıllık ve 5 yıllık kümülatif performans
 - **Reel getiri** — Türkiye enflasyonu (FRED – CPI) ile arındırılmış değerler
+- **TEFAS entegrasyonu** — 3 harfli fon kodları otomatik algılanır (AKB, GAR, TKF…)
 - **Çoklu kaynak doğrulama** — Yahoo Finance + Stooq + Alpha Vantage
 - **Grafikler** — Yıllık getiri, 5Y/3Y, aylık dönem, haftalık dönem, volatilite grafikleri
 - **Excel export** — Oturumun tüm sonuçları tek dosyaya
@@ -53,12 +54,13 @@ Yöntem B — Terminalden:
 
 | Kaynak | Kullanım | Sembol Formatı |
 |---|---|---|
-| **Yahoo Finance** | Fiyat (birincil) | `THYAO.IS`, `ASELS.IS` |
-| **Stooq** | Fiyat (doğrulama) | `THYAO.TR` |
-| **Alpha Vantage** | Fiyat (opsiyonel) | `THYAO.IST` |
+| **Yahoo Finance** | Hisse fiyatı (birincil) | `THYAO.IS`, `ASELS.IS` |
+| **Stooq** | Hisse fiyatı (doğrulama) | `THYAO.TR` |
+| **Alpha Vantage** | Hisse fiyatı (opsiyonel) | `THYAO.IST` |
+| **TEFAS** | Fon birim pay değeri | `AKB`, `GAR`, `TKF` |
 | **FRED** | Enflasyon (TR CPI) | `TURCPIALLMINMEI` |
 
-> **Not:** Sembol girerken `.IS` soneki eklemenize gerek yok — otomatik eklenir.
+> **Not:** Hisse senetlerinde `.IS` soneki otomatik eklenir. Yatırım fonu kodları (3 harf) TEFAS'tan otomatik çekilir.
 
 ---
 
@@ -132,9 +134,20 @@ PGSUS, TAVHL, EKGYO, KOZAL, SASA, TTKOM
 
 ---
 
+## 📋 Popüler TEFAS Fon Kodları
+
+```
+AKB  AKP  GAR  ISY  TKF  IYF  YAY  HLF  DWF  APF
+```
+
+> Tam fon listesi için: [tefas.gov.tr](https://www.tefas.gov.tr)
+
+---
+
 ## ⚠️ Bilinen Sınırlamalar
 
 - Yahoo Finance'te bazı küçük BIST hisseleri bulunmayabilir
 - Stooq'ta BIST verisi kısıtlı olabilir (doğrulama her zaman çalışmayabilir)
 - Alpha Vantage ücretsiz plan: günde 25 istek
 - FRED'deki Türkiye CPI verisi birkaç ay gecikmeli yayınlanır
+- TEFAS'ta temettü verisi tutulmaz (fonlar için temettü sütunu 0 görünür)
