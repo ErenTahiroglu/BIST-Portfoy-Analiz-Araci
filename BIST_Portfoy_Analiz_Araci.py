@@ -35,7 +35,7 @@ ssl._create_default_https_context = ssl._create_unverified_context
 try:
     import certifi
     certifi.where = lambda: ""
-    certifi.old_where = certifi.where
+    certifi.old_where = certifi.where  # type: ignore[attr-defined]
 except ImportError:
     pass
 
@@ -213,10 +213,12 @@ class HisseAnaliz:
                 end  =datetime(self.bu_yil, 12, 31),
             )
             sonuc: Dict[int, float] = {}
+            cpi_idx = pd.DatetimeIndex(cpi.index)
+            cpi_col: pd.Series = cpi["TURCPIALLMINMEI"]  # type: ignore[assignment]
             for yil in self.yillar:
                 try:
-                    once = cpi[cpi.index.year == yil - 1]["TURCPIALLMINMEI"].iloc[-1]
-                    bu   = cpi[cpi.index.year == yil    ]["TURCPIALLMINMEI"].iloc[-1]
+                    once = float(cpi_col[cpi_idx.year == yil - 1].iloc[-1])  # type: ignore[union-attr,index]
+                    bu   = float(cpi_col[cpi_idx.year == yil    ].iloc[-1])  # type: ignore[union-attr,index]
                     sonuc[yil] = ((bu - once) / once) * 100
                 except Exception:
                     sonuc[yil] = VARSAYILAN_ENF
@@ -245,10 +247,11 @@ class HisseAnaliz:
         try:
             if self.aylik_cpi.empty:
                 raise ValueError
-            def _n(ts):
+            def _n(ts: pd.Timestamp) -> pd.Timestamp:
                 return ts.tz_convert(None) if ts.tzinfo else ts
-            cb = self.aylik_cpi[self.aylik_cpi.index <= _n(bas)]["TURCPIALLMINMEI"].iloc[-1]
-            ce = self.aylik_cpi[self.aylik_cpi.index <= _n(bit)]["TURCPIALLMINMEI"].iloc[-1]
+            col: pd.Series = self.aylik_cpi["TURCPIALLMINMEI"]  # type: ignore[assignment]
+            cb = float(col[self.aylik_cpi.index <= _n(bas)].iloc[-1])  # type: ignore[index]
+            ce = float(col[self.aylik_cpi.index <= _n(bit)].iloc[-1])  # type: ignore[index]
             return ((ce - cb) / cb) * 100
         except Exception:
             return (VARSAYILAN_ENF / 365) * (bit - bas).days
@@ -258,13 +261,11 @@ class HisseAnaliz:
     # ─────────────────────────────────────────────────────────────────────────
 
     @staticmethod
-    def _utc(df) -> pd.DataFrame:
+    def _utc(df: "pd.DataFrame | pd.Series") -> pd.DataFrame:
         if isinstance(df, pd.Series):
             df = df.to_frame()
-        if df.index.tzinfo is None:
-            df.index = df.index.tz_localize("UTC")
-        else:
-            df.index = df.index.tz_convert("UTC")
+        idx = pd.DatetimeIndex(df.index)
+        df.index = idx.tz_localize("UTC") if idx.tzinfo is None else idx.tz_convert("UTC")  # type: ignore[union-attr]
         return df
 
     # ─────────────────────────────────────────────────────────────────────────
@@ -274,13 +275,13 @@ class HisseAnaliz:
     def _yahoo_cek(self, sembol: str, baslangic: datetime, bitis: datetime
                    ) -> Optional[pd.DataFrame]:
         yf_sembol = self._bist_sembol(sembol)
-        indir_kwargs = dict(
+        session = _CURL_SESSION if (_HAS_CURL and _CURL_SESSION is not None) else None
+        ham = yf.download(  # type: ignore[call-overload]
+            yf_sembol,
             start=baslangic, end=bitis,
             auto_adjust=True, progress=False, timeout=30,
+            session=session,
         )
-        if _HAS_CURL:
-            indir_kwargs["session"] = _CURL_SESSION
-        ham = yf.download(yf_sembol, **indir_kwargs)
         if ham is None or ham.empty:
             return None
         if isinstance(ham.columns, pd.MultiIndex):
@@ -294,14 +295,14 @@ class HisseAnaliz:
     def _stooq_cek(self, sembol: str, baslangic: datetime, bitis: datetime
                    ) -> Optional[pd.DataFrame]:
         try:
-            # Stooq'ta BIST hisseleri farklı formatlarda olabilir
             temiz = self._temiz_sembol(sembol)
             stooq_sembol = f"{temiz}.TR"
-            df = pdr.get_data_stooq(stooq_sembol, start=baslangic, end=bitis)
+            df: pd.DataFrame = pdr.get_data_stooq(  # type: ignore[assignment]
+                stooq_sembol, start=baslangic, end=bitis
+            )
             if df is None or df.empty:
                 return None
-            df = df.sort_index()
-            return self._utc(df)
+            return self._utc(df.sort_index())
         except Exception:
             return None
 
@@ -365,7 +366,7 @@ class HisseAnaliz:
                     "bastarih": baslangic.strftime("%d.%m.%Y"),
                     "bittarih": bitis.strftime("%d.%m.%Y"),
                 }
-                if _HAS_CURL:
+                if _HAS_CURL and _CURL_SESSION is not None:
                     r = _CURL_SESSION.post(url, data=payload, headers=headers, timeout=30)
                 else:
                     r = req_lib.post(url, data=payload, headers=headers,
@@ -380,10 +381,10 @@ class HisseAnaliz:
                     df["TARIH"], format="%d.%m.%Y", errors="coerce"
                 )
                 df = df.dropna(subset=["tarih"]).set_index("tarih")
-                df.index = df.index.tz_localize("UTC")
+                df.index = pd.DatetimeIndex(df.index).tz_localize("UTC")
                 df = df.sort_index()
                 df["Close"] = pd.to_numeric(df["FIYAT"], errors="coerce")
-                df = df[["Close"]].dropna()
+                df = pd.DataFrame(df[["Close"]].dropna())
 
                 if df.empty:
                     continue
@@ -464,20 +465,13 @@ class HisseAnaliz:
             except Exception as e:
                 print(f"     ⚠️  Alpha Vantage hata: {e}")
 
-        if fiyatlar_yf is None and fiyatlar_stooq is None and fiyatlar_av is None:
+        fiyatlar = fiyatlar_yf or fiyatlar_stooq or fiyatlar_av
+        if fiyatlar is None:
             print(f"  ❌ {temiz}: hiçbir kaynaktan veri alınamadı.")
             return None
 
         # Çapraz doğrulama
         self._capraz_dogrula(temiz, fiyatlar_yf, fiyatlar_stooq, fiyatlar_av)
-
-        # Birincil fiyat seçimi
-        if fiyatlar_yf is not None:
-            fiyatlar = fiyatlar_yf
-        elif fiyatlar_stooq is not None:
-            fiyatlar = fiyatlar_stooq
-        else:
-            fiyatlar = fiyatlar_av
 
         # Temettü (Yahoo'dan)
         temettular = pd.Series(dtype=float)
@@ -553,7 +547,7 @@ class HisseAnaliz:
 
     @staticmethod
     def _ydf(df: pd.DataFrame, yil: int) -> pd.DataFrame:
-        return df[df.index.year == yil]
+        return df.loc[pd.DatetimeIndex(df.index).year == yil]  # type: ignore[return-value]
 
     def _yillik_getiri(self, fiyatlar: pd.DataFrame, yil: int) -> Optional[float]:
         try:
@@ -581,7 +575,7 @@ class HisseAnaliz:
     def _temettu_verimi(self, temettular: pd.Series,
                         fiyatlar: pd.DataFrame, yil: int) -> float:
         try:
-            yt = temettular[temettular.index.year == yil]
+            yt = temettular.loc[pd.DatetimeIndex(temettular.index).year == yil]  # type: ignore[union-attr]
             if yt.empty:
                 return 0.0
             yf_ = self._ydf(fiyatlar, yil)
