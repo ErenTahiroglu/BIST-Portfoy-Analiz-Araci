@@ -595,7 +595,7 @@ class HisseAnaliz:
             bas = sonraki.iloc[0]
             bit = fiyatlar.iloc[-1]
             g   = ((bit["Close"] - bas["Close"]) / bas["Close"]) * 100
-            enf = self._donem_enflasyonu(bas.name, bit.name)
+            enf = self._donem_enflasyonu(bas.name, bit.name)  # type: ignore[arg-type]
             return g, g - enf, enf
         except Exception:
             return None, None, None
@@ -611,7 +611,7 @@ class HisseAnaliz:
             bas = sonraki.iloc[0]
             bit = haftalik.iloc[-1]
             g   = ((bit["Close"] - bas["Close"]) / bas["Close"]) * 100
-            enf = self._donem_enflasyonu(bas.name, bit.name)
+            enf = self._donem_enflasyonu(bas.name, bit.name)  # type: ignore[arg-type]
             return g, g - enf, enf
         except Exception:
             return None, None, None
@@ -650,7 +650,7 @@ class HisseAnaliz:
             return {
                 "fiyat":   son["Close"],
                 "degisim": degisim,
-                "tarih":   son.name.strftime("%d.%m.%Y"),
+                "tarih":   son.name.strftime("%d.%m.%Y"),  # type: ignore[union-attr]
                 "yuksek":  son["High"] if "High" in son.index else son["Close"],
                 "dusuk":   son["Low"]  if "Low"  in son.index else son["Close"],
             }
