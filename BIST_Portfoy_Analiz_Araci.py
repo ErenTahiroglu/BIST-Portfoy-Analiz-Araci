@@ -81,8 +81,7 @@ import requests as req_lib
 import yfinance as yf
 import pandas as pd
 import pandas_datareader as pdr
-import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 # ── pandas-datareader için SSL bypass ─────────────────────────────────────────
