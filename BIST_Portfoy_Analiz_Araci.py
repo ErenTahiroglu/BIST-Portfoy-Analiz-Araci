@@ -74,7 +74,6 @@ except (ImportError, AttributeError):
 
     setattr(_pd_dec, "deprecate_kwarg", _deprecate_kwarg)
 
-# ── Normal import'lar ─────────────────────────────────────────────────────────
 import time
 import threading
 import requests as req_lib
@@ -188,11 +187,7 @@ class HisseAnaliz:
 
     @staticmethod
     def _fon_kodu_mu(sembol: str) -> bool:
-        """Sembolün TEFAS yatırım fonu kodu olup olmadığını kontrol eder.
-
-        TEFAS fon kodları tam olarak 3 büyük harften oluşur (örn: AKB, GAR, TKF).
-        BIST hisse kodları en az 4 karakter olduğundan çakışma yoktur.
-        """
+        """3 harfli büyük harf → TEFAS fon kodu (örn: AKB, GAR). BIST hisseler ≥4 karakter."""
         s = sembol.strip().upper().replace(".IS", "")
         return len(s) == 3 and s.isalpha()
 
@@ -201,10 +196,7 @@ class HisseAnaliz:
     # ─────────────────────────────────────────────────────────────────────────
 
     def _yillik_enflasyon_al(self) -> Dict[int, float]:
-        """
-        FRED'den Türkiye CPI verisini çeker.
-        TURCPIALLMINMEI = Turkey Consumer Price Index, All Items
-        """
+        """FRED'den yıllık Türkiye enflasyonunu çeker (TURCPIALLMINMEI). Hata durumunda varsayılan kullanır."""
         print("📊 Yıllık enflasyon çekiliyor (FRED – TURCPIALLMINMEI)...")
         try:
             cpi = pdr.get_data_fred(
@@ -342,11 +334,8 @@ class HisseAnaliz:
 
     def _tefas_cek(self, fon_kodu: str, baslangic: datetime, bitis: datetime
                    ) -> Optional[pd.DataFrame]:
-        """TEFAS API'sinden fon birim pay değeri geçmişini çeker.
-
-        Endpoint : POST https://www.tefas.gov.tr/api/DB/BindHistoryInfo
-        Fon tipleri: YAT (Yatırım Fonu), EMK (Emeklilik Fonu)
-        Yanıt alanları: TARIH (DD.MM.YYYY), FIYAT (birim pay değeri)
+        """TEFAS'tan fon birim pay değeri geçmişini çeker (YAT ve EMK fonları denenir).
+        Endpoint: POST tefas.gov.tr/api/DB/BindHistoryInfo | Alanlar: TARIH, FIYAT
         """
         fon_kodu = fon_kodu.strip().upper()
         url = "https://www.tefas.gov.tr/api/DB/BindHistoryInfo"
@@ -602,7 +591,6 @@ class HisseAnaliz:
 
     def _haftalik_getiri(self, haftalik: pd.DataFrame, hafta: int
                          ) -> Tuple[Optional[float], Optional[float], Optional[float]]:
-        """Haftalık dönemsel getiri hesapla."""
         try:
             hedef   = self.bugun - pd.DateOffset(weeks=hafta)
             sonraki = haftalik[haftalik.index >= hedef]
@@ -790,7 +778,6 @@ class HisseAnaliz:
                     r[f"{hafta}H Getiri%"] = round(s["hafta"][hafta]["g"], 2)
                     r[f"{hafta}H Reel%"]   = round(s["hafta"][hafta]["r"], 2)
 
-            # Günlük istatistik
             if s["gunluk_ist"]:
                 r["30G Ort%"]  = round(s["gunluk_ist"]["ort"], 3)
                 r["30G Vol%"]  = round(s["gunluk_ist"]["std"], 3)

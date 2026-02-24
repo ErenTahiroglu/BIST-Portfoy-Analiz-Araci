@@ -247,7 +247,6 @@ class GUIApp(ctk.CTk):
         inp.grid(row=1, column=0, sticky="ew", padx=10, pady=6)
         inp.grid_columnconfigure(1, weight=1)
 
-        # Semboller
         sym_f = ctk.CTkFrame(inp)
         sym_f.grid(row=0, column=0, columnspan=2, sticky="ew", padx=8, pady=(8, 4))
         sym_f.grid_columnconfigure(1, weight=1)
@@ -258,7 +257,6 @@ class GUIApp(ctk.CTk):
         self._sym_entry.grid(row=0, column=1, sticky="ew", padx=(0, 8), pady=6)
         self._sym_entry.bind("<Return>", lambda _: self._start_analysis())
 
-        # Alpha Vantage Key
         av_f = ctk.CTkFrame(inp)
         av_f.grid(row=1, column=0, columnspan=2, sticky="ew", padx=8, pady=(0, 8))
         av_f.grid_columnconfigure(1, weight=1)
@@ -273,7 +271,6 @@ class GUIApp(ctk.CTk):
         if av_val:
             self._av_entry.insert(0, av_val)
 
-        # Butonlar
         btn_f = ctk.CTkFrame(inp)
         btn_f.grid(row=0, column=2, rowspan=2, padx=8, pady=8)
         self._analyze_btn = ctk.CTkButton(
