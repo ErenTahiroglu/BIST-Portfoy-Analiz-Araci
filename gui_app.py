@@ -8,8 +8,19 @@ import os
 import sys
 import queue
 import threading
+import logging
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
+
+# ── Basit logging setup ─────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(message)s",
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+    ]
+)
+logger = logging.getLogger(__name__)
 
 import customtkinter as ctk
 import matplotlib

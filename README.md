@@ -1,5 +1,18 @@
 # 📊 BIST Portföy Analiz Aracı
 
+> ⚠️ **ARCHIVED / END-OF-LIFE PROJE**
+>
+> Bu proje **arşivlenmiştir** ve artık aktif olarak bakım görmemektedir. Yıllar sonra bile çalışabilmesi ve incelenebilmesi için aşağıdaki özelliklerle hardened edilmiştir:
+>
+> - ✅ Tüm bağımlılık sürümleri dondurumuştur (== ile sabitleme)
+> - ✅ **Çevrimdışı/Mock Veri Modu**: Internet bağlantısı olmadan veya API değişiminde çalışabilir
+> - ✅ Python 3.11.8 sürümü belirtilmiştir
+> - ✅ Göreceli dosya yolları ile taşınabilirlik sağlanmıştır
+
+**Finansal Danışmanlık Uyarısı:** Bu araç **yatırım danışmanlığı içermez**. Tamamen eğitim amaçlıdır. Gerçek portföy kararları için profesyonel danışmanlarla çalışınız.
+
+---
+
 Borsa İstanbul (BIST) hisse senetleri ve fonların finansal performansını **nominal ve reel (enflasyondan arındırılmış)** bazda **günlük ve haftalık** verilerle analiz eden masaüstü GUI uygulaması.
 
 ---
@@ -47,6 +60,42 @@ Yöntem B — Terminalden:
 ```bash
 .\.venv\Scripts\python gui_app.py
 ```
+
+---
+
+## 🔌 Çevrimdışı / Mock Veri Modu (Archived Projeler İçin)
+
+Proje, internet bağlantısı olmadan veya Yahoo Finance API değişiminde çalışabilmesi için **mock veri modunu** destekler.
+
+### Mock Veriyi Etkinleştirme
+
+**Adım 1:** `.env` dosyasında (yoksa `.env.example` dosyasını kopyalayıp `.env` yapın):
+
+```
+USE_MOCK_DATA=True
+ALPHA_VANTAGE_KEY=your_key_here
+```
+
+**Adım 2:** Uygulamayı çalıştırın:
+
+```bash
+.\\.venv\\Scripts\\python gui_app.py
+```
+
+### Mevcut Mock Veriler
+
+- `mock_data/THYAO.IS.csv` — Türk Hava Yolları (2021–2026)
+- `mock_data/EREGL.IS.csv` — Ereğli Demir Çelik (2021–2026)
+- `mock_data/ASELS.IS.csv` — ASELSAN (2021–2026)
+
+### Yeni Sembol İçin Mock Veri Ekleme
+
+1. `mock_data/{SEMBOL}.csv` dosyasını oluşturun (örn: `GARAN.IS.csv`)
+2. CSV formatı: `Date,Open,High,Low,Close,Volume` (başlık gerekli)
+3. `Date` sütunu `YYYY-MM-DD` formatında olmalı
+4. USE_MOCK_DATA=True durumunda uygulamayı yeniden başlatın
+
+Detaylı bilgi: [mock_data/README.md](mock_data/README.md)
 
 ---
 
@@ -151,3 +200,5 @@ AKB  AKP  GAR  ISY  TKF  IYF  YAY  HLF  DWF  APF
 - Alpha Vantage ücretsiz plan: günde 25 istek
 - FRED'deki Türkiye CPI verisi birkaç ay gecikmeli yayınlanır
 - TEFAS'ta temettü verisi tutulmaz (fonlar için temettü sütunu 0 görünür)
+- Mock veri modu: Örnek veriler gerçek pazar verisi **değildir**, yalnızca UI/analiz testi için kullanılır
+- Mock veri modu FRED enflasyon verisi desteği sunmaz (varsayılan %50 enflasyon kullanır)

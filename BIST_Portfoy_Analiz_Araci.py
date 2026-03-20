@@ -141,6 +141,7 @@ except ImportError:
     pass
 
 _AV_KEY = os.environ.get("ALPHA_VANTAGE_KEY", "")
+_USE_MOCK_DATA = os.environ.get("USE_MOCK_DATA", "").lower() in ("true", "1", "yes")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -160,6 +161,7 @@ class HisseAnaliz:
         print(f"  Analiz yılları: {self.yillar[0]} – {self.yillar[-1]}")
         print(f"  curl_cffi     : {'✅ aktif' if _HAS_CURL else '⚠️ yok, yedek mod'}")
         print(f"  Alpha Vantage : {'✅ ' + _AV_KEY[:8] + '...' if _AV_KEY else '⚠️ yok'}")
+        print(f"  Mock veri     : {'✅ AKTIF (çevrimdışı mod)' if _USE_MOCK_DATA else '⚠️ kapalı'}")
         print(f"{'═'*68}\n")
 
         self.yillik_enf: Dict[int, float] = self._yillik_enflasyon_al()
@@ -190,6 +192,46 @@ class HisseAnaliz:
         """3 harfli büyük harf → TEFAS fon kodu (örn: AKB, GAR). BIST hisseler ≥4 karakter."""
         s = sembol.strip().upper().replace(".IS", "")
         return len(s) == 3 and s.isalpha()
+
+    @staticmethod
+    def _mock_veri_cek(sembol: str) -> Optional[Dict]:
+        """mock_data/ klasöründen CSV dosyasını yükler. Başarısız ise None döndürür."""
+        if not _USE_MOCK_DATA:
+            return None
+        try:
+            # mock_data klasörünün yolunu oluştur
+            if getattr(sys, "frozen", False):
+                base_path = os.path.dirname(sys.executable)
+            else:
+                base_path = os.path.dirname(os.path.abspath(__file__))
+            mock_file = os.path.join(base_path, "mock_data", f"{sembol}.csv")
+
+            if not os.path.exists(mock_file):
+                return None
+
+            df = pd.read_csv(mock_file, parse_dates=["Date"], index_col="Date")
+            df.index = pd.DatetimeIndex(df.index).tz_localize("UTC")
+            df = df.sort_index()
+
+            # Haftalık veri oluştur
+            haftalik = df.resample("W-FRI").agg({
+                "Open": "first", "High": "max", "Low": "min",
+                "Close": "last", "Volume": "sum"
+            }).dropna() if "Open" in df.columns else df.resample("W-FRI").last().dropna()
+
+            temiz = sembol.replace(".IS", "")
+            ad = POPULER_BIST.get(temiz, temiz)
+
+            print(f"     ✅ Mock veri: {len(df)} gün ({sembol})")
+            return {
+                "fiyatlar":  df,
+                "haftalik":  haftalik,
+                "temettular": pd.Series(dtype=float),
+                "ad":        ad,
+            }
+        except Exception as e:
+            print(f"     ⚠️  Mock veri yükleme hatası ({sembol}): {str(e)[:60]}")
+            return None
 
     # ─────────────────────────────────────────────────────────────────────────
     # ENFLASYON (FRED – Türkiye CPI)
@@ -393,6 +435,14 @@ class HisseAnaliz:
 
     def _veri_cek(self, sembol: str) -> Optional[Dict]:
         temiz     = self._temiz_sembol(sembol)
+
+        # ── Mock veri kontrol (USE_MOCK_DATA=True ise) ─────────────────────────
+        if _USE_MOCK_DATA:
+            mock_result = self._mock_veri_cek(self._bist_sembol(temiz))
+            if mock_result is not None:
+                print(f"  📥 {temiz} → mock verisi kullanılıyor...")
+                return mock_result
+
         fon_mu    = self._fon_kodu_mu(temiz)
         baslangic = datetime(self.yillar[0] - 1, 12, 1)
         bitis     = self.bugun.tz_convert(None).to_pydatetime()

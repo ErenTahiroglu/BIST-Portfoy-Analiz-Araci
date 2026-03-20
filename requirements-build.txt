@@ -1,4 +1,4 @@
 # EXE derleme bağımlılıkları
 # Kurulum: env\Scripts\pip install -r requirements-build.txt
 # Build   : env\Scripts\pyinstaller bist_analiz.spec
-pyinstaller>=6.0.0
+pyinstaller==6.8.0

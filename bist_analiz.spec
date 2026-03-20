@@ -8,6 +8,9 @@ datas        = []
 binaries     = []
 hiddenimports = []
 
+# ── mock_data klasörü (çevrimdışı mod için) ──────────────────────────────────
+datas += [("mock_data", "mock_data")]
+
 # ── customtkinter: tema, font ve resim dosyaları zorunlu ─────────────────────
 ctk_d, ctk_b, ctk_h = collect_all("customtkinter")
 datas        += ctk_d
